@@ -6,7 +6,7 @@ using UnityEngine.Rendering;
 namespace ParkMinPackages.UGUI.Blur.Components
 {
 	[ExecuteAlways, DisallowMultipleComponent, RequireComponent(typeof(UnityEngine.UI.Image))]
-	public sealed class UIBackgroundBlur : UnityEngine.UI.BaseMeshEffect, UnityEngine.UI.IMaterialModifier
+	public sealed class UIBlur : UnityEngine.UI.BaseMeshEffect, UnityEngine.UI.IMaterialModifier
 	{
 		// - Public Methods -
 		public Material GetModifiedMaterial(Material baseMaterial) {
@@ -14,7 +14,7 @@ namespace ParkMinPackages.UGUI.Blur.Components
 				if (_material == null || _baseMaterial != baseMaterial) {
 					CoreUtils.Destroy(_material);
 					_baseMaterial = baseMaterial;
-					_material = new Material(baseMaterial) { shader = _materialTemplate.shader, hideFlags = HideFlags.HideAndDontSave, name = "UI Background Blur (Instance)" };
+					_material = new Material(baseMaterial) { shader = _materialTemplate.shader, hideFlags = HideFlags.HideAndDontSave, name = "UI Blur (Instance)" };
 				}
 				_material.SetColor("_TintColor", _tintColor);
 				_material.SetFloat("_Opacity", _opacity);

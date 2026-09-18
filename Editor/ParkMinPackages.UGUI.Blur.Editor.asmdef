@@ -1,0 +1,20 @@
+{
+  "name": "ParkMinPackages.UGUI.Blur.Editor",
+  "rootNamespace": "ParkMinPackages.UGUI.Blur.Editor",
+  "references": [
+    "GUID:9614749c63301a0468351a3211fa0495",
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.Universal.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

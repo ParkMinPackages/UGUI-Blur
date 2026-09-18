@@ -8,7 +8,7 @@ using UnityEngine.Rendering.Universal;
 
 namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 {
-	public sealed class UIBackgroundBlurRendererFeature : ScriptableRendererFeature
+	public sealed class UIBlurRendererFeature : ScriptableRendererFeature
 	{
 		// - Public Methods -
 		public override void Create() {
@@ -17,7 +17,7 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 			_pass = new BlurPass(_material) { renderPassEvent = RenderPassEvent.BeforeRenderingTransparents };
 		}
 		public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData) {
-			if (_material != null && renderingData.cameraData.cameraType == CameraType.Game && renderingData.cameraData.camera.TryGetComponent(out UIBackgroundBlurSource source) && source.isActiveAndEnabled) {
+			if (_material != null && renderingData.cameraData.cameraType == CameraType.Game && UIBlurSource.FindFor(renderingData.cameraData.camera) != null) {
 				renderer.EnqueuePass(_pass);
 			}
 		}
@@ -42,21 +42,46 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 			// - Construct -
 			public BlurPass(Material material) {
 				_material = material;
+				ConfigureInput(ScriptableRenderPassInput.Color);
+				requiresIntermediateTexture = true;
 			}
 
 			// - Public Methods -
 			public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData) {
 				UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
-				UIBackgroundBlurSource source = cameraData.camera.GetComponent<UIBackgroundBlurSource>();
-				if (source == null || source.Background == null) {
+				UIBlurSource source = UIBlurSource.FindFor(cameraData.camera);
+				if (source == null) {
 					return;
 				}
 
 				// Background reduction
-				RenderTexture captured = source.BackgroundTexture;
-				RenderTargetInfo backgroundInfo = new RenderTargetInfo { width = captured.width, height = captured.height, volumeDepth = captured.volumeDepth, msaaSamples = 1, format = captured.graphicsFormat };
-				TextureHandle background = renderGraph.ImportTexture(source.Background, backgroundInfo);
-				TextureDesc descriptor = new TextureDesc(captured.width, captured.height) { colorFormat = captured.graphicsFormat, dimension = captured.dimension, slices = captured.volumeDepth };
+				TextureHandle background;
+				int width;
+				int height;
+				TextureDimension dimension;
+				int volumeDepth;
+				if (source.SourceMode == UIBlurSourceMode.Camera) {
+					UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
+					background = resourceData.activeColorTexture;
+					width = cameraData.cameraTargetDescriptor.width;
+					height = cameraData.cameraTargetDescriptor.height;
+					dimension = cameraData.cameraTargetDescriptor.dimension;
+					volumeDepth = cameraData.cameraTargetDescriptor.volumeDepth;
+				}
+				else {
+					Texture captured = source.ImageTexture;
+					if (source.Image == null || captured == null) {
+						return;
+					}
+					width = captured.width;
+					height = captured.height;
+					dimension = captured.dimension;
+					volumeDepth = captured is RenderTexture renderTexture ? renderTexture.volumeDepth : 1;
+					RenderTargetInfo backgroundInfo = new RenderTargetInfo { width = width, height = height, volumeDepth = volumeDepth, msaaSamples = 1, format = captured.graphicsFormat };
+					background = renderGraph.ImportTexture(source.Image, backgroundInfo);
+				}
+
+				TextureDesc descriptor = new TextureDesc(width, height) { colorFormat = cameraData.cameraTargetDescriptor.graphicsFormat, dimension = dimension, slices = volumeDepth };
 				descriptor.msaaSamples = MSAASamples.None;
 				descriptor.depthBufferBits = DepthBits.None;
 				descriptor.clearBuffer = false;
@@ -65,18 +90,23 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 				descriptor.height = Mathf.Max(1, descriptor.height / 2);
 				descriptor.name = "UI Background Half";
 				TextureHandle half = renderGraph.CreateTexture(descriptor);
-				using (IRasterRenderGraphBuilder builder = renderGraph.AddRasterRenderPass<CapturePassData>("UI Background Downsample Half", out CapturePassData passData)) {
-					passData.Source = captured;
-					passData.Material = _material;
-					builder.UseTexture(background);
-					builder.SetRenderAttachment(half, 0);
-					builder.SetRenderFunc(static (CapturePassData data, RasterGraphContext context) => {
-						MaterialPropertyBlock properties = new MaterialPropertyBlock();
-						properties.SetTexture("_BlitTexture", data.Source);
-						properties.SetVector("_BlitTexture_TexelSize", new Vector4(1f / data.Source.width, 1f / data.Source.height, data.Source.width, data.Source.height));
-						properties.SetVector("_BlitScaleBias", new Vector4(1f, 1f, 0f, 0f));
-						context.cmd.DrawProcedural(Matrix4x4.identity, data.Material, 2, MeshTopology.Triangles, 3, 1, properties);
-					});
+				if (source.SourceMode == UIBlurSourceMode.Camera) {
+					renderGraph.AddBlitPass(new RenderGraphUtils.BlitMaterialParameters(background, half, _material, 2), "UI Background Downsample Half");
+				}
+				else {
+					using (IRasterRenderGraphBuilder builder = renderGraph.AddRasterRenderPass<CapturePassData>("UI Background Downsample Half", out CapturePassData passData)) {
+						passData.Source = source.ImageTexture;
+						passData.Material = _material;
+						builder.UseTexture(background);
+						builder.SetRenderAttachment(half, 0);
+						builder.SetRenderFunc(static (CapturePassData data, RasterGraphContext context) => {
+							MaterialPropertyBlock properties = new MaterialPropertyBlock();
+							properties.SetTexture("_BlitTexture", data.Source);
+							properties.SetVector("_BlitTexture_TexelSize", new Vector4(1f / data.Source.width, 1f / data.Source.height, data.Source.width, data.Source.height));
+							properties.SetVector("_BlitScaleBias", new Vector4(1f, 1f, 0f, 0f));
+							context.cmd.DrawProcedural(Matrix4x4.identity, data.Material, 2, MeshTopology.Triangles, 3, 1, properties);
+						});
+					}
 				}
 				descriptor.width = Mathf.Max(1, descriptor.width / 2);
 				descriptor.height = Mathf.Max(1, descriptor.height / 2);
@@ -103,13 +133,13 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 			// - Class Struct Enum -
 			sealed class CapturePassData
 			{
-				public RenderTexture Source;
+				public Texture Source;
 				public Material Material;
 			}
 
 			// - Private Statics -
 			static readonly int _radiusId = Shader.PropertyToID("_BlurRadius");
-			static readonly int _textureId = Shader.PropertyToID("_UIBackgroundBlurTexture");
+			static readonly int _textureId = Shader.PropertyToID("_UIBlurTexture");
 		}
 	}
 }
