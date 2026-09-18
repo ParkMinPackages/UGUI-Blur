@@ -1,0 +1,19 @@
+{
+  "name": "com.parkminpackages.ugui.blur",
+  "displayName": "ParkMinPackages.UGUI.Blur",
+  "version": "1.0.0",
+  "license": "MIT",
+  "documentationUrl": "https://github.com/ParkMinPackages/UGUI-Blur#readme",
+  "changelogUrl": "https://github.com/ParkMinPackages/UGUI-Blur/blob/main/CHANGELOG.md",
+  "licensesUrl": "https://github.com/ParkMinPackages/UGUI-Blur/blob/main/LICENSE.md",
+  "unity": "6000.5",
+  "description": "URP background blur components for ParkMinPackages UGUI.",
+  "dependencies": {
+    "com.unity.ugui": "2.5.0",
+    "com.unity.render-pipelines.universal": "17.5.0"
+  },
+  "author": {
+    "name": "ParkMinPackages",
+    "url": "https://github.com/ParkMinPackages"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "gitDependencies": [
+    {
+      "packageName": "com.parkminpackages.foundation",
+      "version": "10.1.1",
+      "url": "https://github.com/ParkMinPackages/Foundation.git"
+    },
+    {
+      "packageName": "com.parkminpackages.ugui",
+      "version": "14.0.0",
+      "url": "https://github.com/ParkMinPackages/UGUI.git"
+    }
+  ],
+  "nugetDependencies": []
+}
