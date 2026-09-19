@@ -1,6 +1,9 @@
 using ParkMinPackages.Foundation.Constants;
+using ParkMinPackages.UGUI.Blur.Components;
 using Sirenix.OdinInspector;
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.RenderGraphModule.Util;
@@ -17,7 +20,7 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 			_pass = new BlurPass(_material) { renderPassEvent = RenderPassEvent.BeforeRenderingTransparents };
 		}
 		public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData) {
-			if (_material != null && renderingData.cameraData.cameraType == CameraType.Game && BlurImageSource.FindFor(renderingData.cameraData.camera) != null) {
+			if (_material != null && renderingData.cameraData.cameraType == CameraType.Game && BlurImage.HasSourceFor(renderingData.cameraData.camera)) {
 				renderer.EnqueuePass(_pass);
 			}
 		}
@@ -49,52 +52,58 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 			// - Public Methods -
 			public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData) {
 				UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
-				BlurImageSource source = BlurImageSource.FindFor(cameraData.camera);
-				if (source == null) {
-					return;
+				BlurImage.GetSourcesFor(cameraData.camera, _sources);
+				for (int i = 0; i < _sources.Count; i++) {
+					RecordSource(renderGraph, frameData, cameraData, _sources[i]);
 				}
+			}
 
+			// - Private & Protected -
+			readonly Material _material;
+			readonly List<BlurImageSource> _sources = new List<BlurImageSource>();
+
+			void RecordSource(RenderGraph renderGraph, ContextContainer frameData, UniversalCameraData cameraData, BlurImageSource source) {
 				// Background reduction
 				TextureHandle background;
-				int width;
-				int height;
-				TextureDimension dimension;
-				int volumeDepth;
+				TextureDesc descriptor;
+				int sourceWidth;
+				int sourceHeight;
 				if (source.SourceMode == BlurImageSourceMode.Camera) {
 					UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
 					background = resourceData.activeColorTexture;
-					width = cameraData.cameraTargetDescriptor.width;
-					height = cameraData.cameraTargetDescriptor.height;
-					dimension = cameraData.cameraTargetDescriptor.dimension;
-					volumeDepth = cameraData.cameraTargetDescriptor.volumeDepth;
+					descriptor = background.GetDescriptor(renderGraph);
+					sourceWidth = descriptor.width;
+					sourceHeight = descriptor.height;
 				}
 				else {
 					Texture captured = source.ImageTexture;
 					if (source.Image == null || captured == null) {
 						return;
 					}
-					width = captured.width;
-					height = captured.height;
-					dimension = captured.dimension;
-					volumeDepth = captured is RenderTexture renderTexture ? renderTexture.volumeDepth : 1;
-					RenderTargetInfo backgroundInfo = new RenderTargetInfo { width = width, height = height, volumeDepth = volumeDepth, msaaSamples = 1, format = captured.graphicsFormat };
+
+					sourceWidth = captured.width;
+					sourceHeight = captured.height;
+					TextureDimension dimension = captured.dimension;
+					int volumeDepth = captured is RenderTexture renderTexture ? renderTexture.volumeDepth : 1;
+					RenderTargetInfo backgroundInfo = new RenderTargetInfo { width = sourceWidth, height = sourceHeight, volumeDepth = volumeDepth, msaaSamples = 1, format = captured.graphicsFormat };
 					background = renderGraph.ImportTexture(source.Image, backgroundInfo);
+					descriptor = new TextureDesc(sourceWidth, sourceHeight) { colorFormat = captured.graphicsFormat, dimension = dimension, slices = volumeDepth };
 				}
 
-				TextureDesc descriptor = new TextureDesc(width, height) { colorFormat = cameraData.cameraTargetDescriptor.graphicsFormat, dimension = dimension, slices = volumeDepth };
+				descriptor.colorFormat = SystemInfo.GetCompatibleFormat(descriptor.colorFormat, FormatUsage.Render);
 				descriptor.msaaSamples = MSAASamples.None;
 				descriptor.depthBufferBits = DepthBits.None;
 				descriptor.clearBuffer = false;
 				descriptor.filterMode = FilterMode.Bilinear;
-				descriptor.width = Mathf.Max(1, descriptor.width / 2);
-				descriptor.height = Mathf.Max(1, descriptor.height / 2);
-				descriptor.name = "UI Background Half";
+				descriptor.width = Mathf.Max(1, sourceWidth / 2);
+				descriptor.height = Mathf.Max(1, sourceHeight / 2);
+				descriptor.name = "Blur Image Half " + source.GetEntityId();
 				TextureHandle half = renderGraph.CreateTexture(descriptor);
 				if (source.SourceMode == BlurImageSourceMode.Camera) {
-					renderGraph.AddBlitPass(new RenderGraphUtils.BlitMaterialParameters(background, half, _material, 2), "UI Background Downsample Half");
+					renderGraph.AddBlitPass(new RenderGraphUtils.BlitMaterialParameters(background, half, _material, 2), "Blur Image Downsample Half");
 				}
 				else {
-					using (IRasterRenderGraphBuilder builder = renderGraph.AddRasterRenderPass<CapturePassData>("UI Background Downsample Half", out CapturePassData passData)) {
+					using (IRasterRenderGraphBuilder builder = renderGraph.AddRasterRenderPass<CapturePassData>("Blur Image Downsample Half", out CapturePassData passData)) {
 						passData.Source = source.ImageTexture;
 						passData.Material = _material;
 						builder.UseTexture(background);
@@ -108,27 +117,24 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 						});
 					}
 				}
+
 				descriptor.width = Mathf.Max(1, descriptor.width / 2);
 				descriptor.height = Mathf.Max(1, descriptor.height / 2);
-				descriptor.name = "UI Background Quarter";
+				descriptor.name = "Blur Image Quarter " + source.GetEntityId();
 				TextureHandle reduced = renderGraph.CreateTexture(descriptor);
-				renderGraph.AddBlitPass(new RenderGraphUtils.BlitMaterialParameters(half, reduced, _material, 2), "UI Background Downsample Quarter");
+				renderGraph.AddBlitPass(new RenderGraphUtils.BlitMaterialParameters(half, reduced, _material, 2), "Blur Image Downsample Quarter");
 
 				// Separable Gaussian blur
 				MaterialPropertyBlock properties = new MaterialPropertyBlock();
-				properties.SetVector(_radiusId, new Vector4(source.Radius * descriptor.width / cameraData.camera.pixelWidth, source.Radius * descriptor.height / cameraData.camera.pixelHeight, 0f, 0f));
-				descriptor.name = "UI Background Horizontal";
+				properties.SetVector(_radiusId, new Vector4(source.Radius * descriptor.width / sourceWidth, source.Radius * descriptor.height / sourceHeight, 0f, 0f));
+				descriptor.name = "Blur Image Horizontal " + source.GetEntityId();
 				TextureHandle horizontal = renderGraph.CreateTexture(descriptor);
-				renderGraph.AddBlitPass(new RenderGraphUtils.BlitMaterialParameters(reduced, horizontal, _material, 0) { propertyBlock = properties }, "UI Background Gaussian Horizontal");
-				descriptor.name = "UI Background Blurred";
-				TextureHandle blurred = renderGraph.CreateTexture(descriptor);
-				using (IBaseRenderGraphBuilder builder = renderGraph.AddBlitPass(new RenderGraphUtils.BlitMaterialParameters(horizontal, blurred, _material, 1) { propertyBlock = properties }, "UI Background Gaussian Vertical", returnBuilder: true)) {
-					builder.SetGlobalTextureAfterPass(blurred, _textureId);
-				}
-			}
+				renderGraph.AddBlitPass(new RenderGraphUtils.BlitMaterialParameters(reduced, horizontal, _material, 0) { propertyBlock = properties }, "Blur Image Gaussian Horizontal");
 
-			// - Private & Protected -
-			readonly Material _material;
+				source.EnsureOutput(descriptor.width, descriptor.height, descriptor.colorFormat, descriptor.dimension, descriptor.slices);
+				TextureHandle blurred = renderGraph.ImportTexture(source.Output);
+				renderGraph.AddBlitPass(new RenderGraphUtils.BlitMaterialParameters(horizontal, blurred, _material, 1) { propertyBlock = properties }, "Blur Image Gaussian Vertical");
+			}
 
 			// - Class Struct Enum -
 			sealed class CapturePassData
@@ -139,7 +145,6 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 
 			// - Private Statics -
 			static readonly int _radiusId = Shader.PropertyToID("_BlurRadius");
-			static readonly int _textureId = Shader.PropertyToID("_BlurImageTexture");
 		}
 	}
 }

@@ -1,8 +1,9 @@
 using ParkMinPackages.Foundation.Constants;
-using ParkMinPackages.UGUI.Blur.Components;
 using Sirenix.OdinInspector;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 {
@@ -16,14 +17,10 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 		public float Radius => _radius;
 		internal RTHandle Image => _imageHandle;
 		internal Texture ImageTexture => _imageTexture;
+		internal RTHandle Output => _outputHandle;
+		internal Texture OutputTexture => _outputHandle == null ? null : _outputHandle.rt;
 
 		// - Public Methods -
-		internal static BlurImageSource FindFor(Camera camera) {
-			BlurImageSource source = BlurImage.FindExplicitSourceFor(camera);
-			source?.RefreshImageSource();
-			return source;
-		}
-
 		internal bool CanRenderFor(Camera camera) {
 			return IsReady() && TryGetRenderCamera(out Camera renderCamera) && renderCamera == camera;
 		}
@@ -46,15 +43,36 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 			}
 			return camera != null;
 		}
+		internal void RefreshImageSource() {
+			Texture sourceTexture = IsImageMode && _sourceImage != null && _sourceImage.sprite != null ? _sourceImage.sprite.texture : null;
+			if (_imageTexture != sourceTexture) {
+				_imageHandle?.Release();
+				_imageTexture = sourceTexture;
+				_imageHandle = sourceTexture == null ? null : RTHandles.Alloc(sourceTexture);
+			}
+		}
+		internal void EnsureOutput(int width, int height, GraphicsFormat graphicsFormat, TextureDimension dimension, int volumeDepth) {
+			RenderTextureDescriptor descriptor = new RenderTextureDescriptor(Mathf.Max(1, width), Mathf.Max(1, height)) {
+				graphicsFormat = graphicsFormat,
+				depthStencilFormat = GraphicsFormat.None,
+				msaaSamples = 1,
+				dimension = dimension,
+				volumeDepth = Mathf.Max(1, volumeDepth),
+				useMipMap = false,
+				autoGenerateMips = false
+			};
+			RenderingUtils.ReAllocateHandleIfNeeded(ref _outputHandle, descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_BlurImageTexture_" + GetEntityId());
+		}
 
 		// - Handler -
 		void OnEnable() {
 			RefreshImageSource();
 		}
 		void OnDisable() {
-			_imageHandle?.Release();
-			_imageHandle = null;
-			_imageTexture = null;
+			ReleaseResources();
+		}
+		void OnDestroy() {
+			ReleaseResources();
 		}
 #if UNITY_EDITOR
 		void OnValidate() {
@@ -74,18 +92,17 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 
 		Texture _imageTexture;
 		RTHandle _imageHandle;
+		RTHandle _outputHandle;
 
 		bool IsCameraMode => _sourceMode == BlurImageSourceMode.Camera;
 		bool IsImageMode => _sourceMode == BlurImageSourceMode.Image;
 
-		void RefreshImageSource() {
-			Texture sourceTexture = IsImageMode && _sourceImage != null && _sourceImage.sprite != null ? _sourceImage.sprite.texture : null;
-			if (_imageTexture != sourceTexture) {
-				_imageHandle?.Release();
-				_imageTexture = sourceTexture;
-				_imageHandle = sourceTexture == null ? null : RTHandles.Alloc(sourceTexture);
-			}
+		void ReleaseResources() {
+			_imageHandle?.Release();
+			_imageHandle = null;
+			_imageTexture = null;
+			_outputHandle?.Release();
+			_outputHandle = null;
 		}
-
 	}
 }

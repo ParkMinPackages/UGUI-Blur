@@ -38,21 +38,41 @@ namespace ParkMinPackages.UGUI.Blur.Components
 				}
 			}
 		}
-		internal static BlurImageSource FindExplicitSourceFor(Camera camera) {
+		internal static bool HasSourceFor(Camera camera) {
 			for (int i = 0; i < _activeImages.Count; i++) {
 				BlurImage blurImage = _activeImages[i];
-				if (blurImage != null && blurImage.isActiveAndEnabled && blurImage._source != null && blurImage._source.isActiveAndEnabled && blurImage._source.CanRenderFor(camera)) {
-					return blurImage._source;
+				if (blurImage != null && blurImage.isActiveAndEnabled && blurImage._source != null && blurImage._source.CanRenderFor(camera)) {
+					return true;
 				}
 			}
-			return null;
+			return false;
+		}
+		internal static void GetSourcesFor(Camera camera, List<BlurImageSource> sources) {
+			sources.Clear();
+			for (int i = 0; i < _activeImages.Count; i++) {
+				BlurImage blurImage = _activeImages[i];
+				BlurImageSource source = blurImage == null ? null : blurImage._source;
+				if (blurImage != null && blurImage.isActiveAndEnabled && source != null && source.CanRenderFor(camera) && sources.Contains(source) == false) {
+					source.RefreshImageSource();
+					sources.Add(source);
+				}
+			}
 		}
 
 		// - Public Properties -
 		public BlurImageSource Source
 		{
 			get { return _source; }
-			set { _source = value; }
+			set {
+				if (_source == value) {
+					return;
+				}
+
+				_source = value;
+				if (graphic != null) {
+					graphic.SetMaterialDirty();
+				}
+			}
 		}
 
 		// - Handler -
@@ -94,7 +114,7 @@ namespace ParkMinPackages.UGUI.Blur.Components
 		// - Private & Protected -
 		[Header(Headers.Required)]
 		[SerializeField, Required] Material _materialTemplate;
-		[InfoBox("A different BlurImageSource is selected for the same Camera. Only the first registered Source will be used.", InfoMessageType.Warning, nameof(HasSourceConflict)), SerializeField, Required, Tooltip("The source used to generate this image's blur texture. No blur is rendered when omitted.")] BlurImageSource _source;
+		[SerializeField, Required, Tooltip("The source used to generate this image's blur texture. No blur is rendered when omitted.")] BlurImageSource _source;
 
 		[SerializeField, HideInInspector, FormerlySerializedAs("_tintColor")] Color _legacyTintColor = new Color(-1f, -1f, -1f, -1f);
 		[SerializeField, HideInInspector] bool _imageColorMigrated;
@@ -102,20 +122,6 @@ namespace ParkMinPackages.UGUI.Blur.Components
 		Material _material;
 		Material _baseMaterial;
 
-		bool HasSourceConflict() {
-			if (_source == null || _source.TryGetRenderCamera(out Camera camera) == false) {
-				return false;
-			}
-
-			for (int i = 0; i < _activeImages.Count; i++) {
-				BlurImage blurImage = _activeImages[i];
-				BlurImageSource otherSource = blurImage == null ? null : blurImage._source;
-				if (blurImage != this && blurImage.isActiveAndEnabled && otherSource != null && otherSource != _source && otherSource.isActiveAndEnabled && otherSource.CanRenderFor(camera)) {
-					return true;
-				}
-			}
-			return false;
-		}
 		void MigrateLegacyTintColor() {
 			if (_imageColorMigrated) {
 				return;
@@ -128,14 +134,16 @@ namespace ParkMinPackages.UGUI.Blur.Components
 		}
 		void UpdateMaterialProperties() {
 			if (_material != null && graphic != null) {
+				Texture outputTexture = _source == null ? null : _source.OutputTexture;
+				_material.SetTexture(_texturePropertyId, outputTexture);
 				_material.SetColor(_tintColorPropertyId, graphic.color);
-				bool sourceAvailable = _source != null && _source.IsReady();
-				_material.SetFloat(_opacityPropertyId, sourceAvailable ? 1f : 0f);
+				_material.SetFloat(_opacityPropertyId, _source != null && _source.IsReady() && outputTexture != null ? 1f : 0f);
 			}
 		}
 
 		// - Private Statics -
 		static readonly List<BlurImage> _activeImages = new List<BlurImage>();
+		static readonly int _texturePropertyId = Shader.PropertyToID("_BlurImageTexture");
 		static readonly int _tintColorPropertyId = Shader.PropertyToID("_TintColor");
 		static readonly int _opacityPropertyId = Shader.PropertyToID("_Opacity");
 	}
