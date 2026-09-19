@@ -34,6 +34,10 @@ namespace ParkMinPackages.UGUI.Blur.Editor
 				_applyImageColorContinuously = EditorGUILayout.ToggleLeft("일괄적용", _applyImageColorContinuously, GUILayout.Width(EditorGUIUtility.labelWidth));
 				EditorGUILayout.PropertyField(_applyImageColorProperty, GUIContent.none);
 				EditorGUILayout.EndHorizontal();
+
+				if (GUILayout.Button("하위 BlurImage에 자신 할당")) {
+					AssignToChildBlurImages();
+				}
 			}
 			serializedObject.ApplyModifiedProperties();
 		}
@@ -42,6 +46,22 @@ namespace ParkMinPackages.UGUI.Blur.Editor
 		SerializedProperty _applyImageColorProperty;
 		bool _applyImageColorContinuously;
 
+		void AssignToChildBlurImages() {
+			BlurImageSource source = (BlurImageSource)target;
+			BlurImage[] childBlurImages = source.GetComponentsInChildren<BlurImage>(true)
+				.Where(blurImage => blurImage.transform != source.transform && blurImage.Source != source)
+				.ToArray();
+
+			foreach (BlurImage blurImage in childBlurImages) {
+				Undo.RecordObject(blurImage, "하위 BlurImage에 Source 할당");
+				blurImage.Source = source;
+				PrefabUtility.RecordPrefabInstancePropertyModifications(blurImage);
+				EditorUtility.SetDirty(blurImage);
+				if (blurImage.gameObject.scene.IsValid()) {
+					EditorSceneManager.MarkSceneDirty(blurImage.gameObject.scene);
+				}
+			}
+		}
 		void ApplyImageColor() {
 			if (_applyImageColorContinuously == false || target == null || Application.isPlaying) {
 				return;
