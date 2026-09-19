@@ -5,6 +5,23 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-09-19
+
+### Added
+- Added a required `BlurImage.Source` assignment for explicitly selecting the `BlurImageSource` that generates its blur texture.
+- Added an Odin Inspector warning when active `BlurImage` components select different sources that target the same Camera.
+- Added a `Utility` Inspector group with a non-serialized `일괄적용` toggle followed by a color field that continuously applies one `Image.color` to every connected `BlurImage`.
+
+### Changed
+- Moved the color application state and Editor Update lifetime into a dedicated `BlurImageSourceEditor`, so it always starts disabled for each Inspector instance and stops when that Inspector closes.
+- Removed automatic source discovery so a `BlurImage` without an assigned Source does not render blur.
+- Prioritized the first explicitly assigned active source for each Camera while continuing to share one global blur texture across `BlurImage` components.
+
+### Fixed
+- Kept the `일괄적용` toggle enabled while editing the serialized color field by separating its non-serialized state from Odin's target property tree.
+- Prevented `BlurImage` from displaying the previously generated global blur texture when no valid `BlurImageSource` is available.
+- Treated an Image-mode source without a Sprite as unavailable until a Sprite is assigned.
+
 ## [3.0.0] - 2026-09-19
 
 ### Changed

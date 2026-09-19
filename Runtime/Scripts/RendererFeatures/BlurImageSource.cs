@@ -1,7 +1,6 @@
 using ParkMinPackages.Foundation.Constants;
+using ParkMinPackages.UGUI.Blur.Components;
 using Sirenix.OdinInspector;
-using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -20,19 +19,39 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 
 		// - Public Methods -
 		internal static BlurImageSource FindFor(Camera camera) {
-			BlurImageSource source = _activeSources.LastOrDefault(activeSource => activeSource != null && activeSource.isActiveAndEnabled && activeSource.CanRenderFor(camera));
+			BlurImageSource source = BlurImage.FindExplicitSourceFor(camera);
 			source?.RefreshImageSource();
 			return source;
 		}
 
+		internal bool CanRenderFor(Camera camera) {
+			return IsReady() && TryGetRenderCamera(out Camera renderCamera) && renderCamera == camera;
+		}
+		internal bool IsReady() {
+			return isActiveAndEnabled && TryGetRenderCamera(out Camera _) && (IsCameraMode || _sourceImage.sprite != null);
+		}
+		internal bool TryGetRenderCamera(out Camera camera) {
+			if (IsCameraMode) {
+				camera = _sourceCamera;
+				return camera != null;
+			}
+			if (_sourceImage == null) {
+				camera = null;
+				return false;
+			}
+
+			camera = _sourceImage.canvas == null ? null : _sourceImage.canvas.rootCanvas.worldCamera;
+			if (camera == null) {
+				camera = Camera.main;
+			}
+			return camera != null;
+		}
+
 		// - Handler -
 		void OnEnable() {
-			_activeSources.Remove(this);
-			_activeSources.Add(this);
 			RefreshImageSource();
 		}
 		void OnDisable() {
-			_activeSources.Remove(this);
 			_imageHandle?.Release();
 			_imageHandle = null;
 			_imageTexture = null;
@@ -49,6 +68,9 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 		[SerializeField, EnableIf(nameof(IsCameraMode))] Camera _sourceCamera;
 		[SerializeField, EnableIf(nameof(IsImageMode))] UnityEngine.UI.Image _sourceImage;
 		[SerializeField, Range(0f, 128f), Tooltip("Blur support radius in screen pixels.")] float _radius = 40f;
+#if UNITY_EDITOR
+		[SerializeField, HideInInspector] Color _applyImageColor = Color.white;
+#endif
 
 		Texture _imageTexture;
 		RTHandle _imageHandle;
@@ -56,18 +78,6 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 		bool IsCameraMode => _sourceMode == BlurImageSourceMode.Camera;
 		bool IsImageMode => _sourceMode == BlurImageSourceMode.Image;
 
-		bool CanRenderFor(Camera camera) {
-			if (IsCameraMode) {
-				return camera == _sourceCamera;
-			}
-
-			if (_sourceImage == null) {
-				return false;
-			}
-
-			Camera canvasCamera = _sourceImage.canvas == null ? null : _sourceImage.canvas.rootCanvas.worldCamera;
-			return canvasCamera == null ? camera == Camera.main : camera == canvasCamera;
-		}
 		void RefreshImageSource() {
 			Texture sourceTexture = IsImageMode && _sourceImage != null && _sourceImage.sprite != null ? _sourceImage.sprite.texture : null;
 			if (_imageTexture != sourceTexture) {
@@ -77,7 +87,5 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 			}
 		}
 
-		// - Private Statics -
-		static readonly List<BlurImageSource> _activeSources = new List<BlurImageSource>();
 	}
 }
