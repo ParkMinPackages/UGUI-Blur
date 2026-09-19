@@ -5,6 +5,16 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-09-19
+
+### Changed
+- Renamed the public APIs to `BlurImage`, `BlurImageSource`, `BlurImageSourceMode`, and `BlurImageRendererFeature`.
+- Renamed the global blur texture property to `_BlurImageTexture`.
+- Removed the separate `BlurImage` Tint Color and Opacity controls.
+- Changed `UnityEngine.UI.Image.color` so RGB selects the color blended over the blurred background and Alpha controls only that tint blend amount.
+- Kept the blurred panel output opaque so lowering the Image Alpha no longer reveals the sharp source background.
+- Added one-time migration from the previously serialized Tint Color to `Image.color` while preserving CanvasGroup-driven fades.
+
 ## [2.0.0] - 2026-09-18
 
 ### Added

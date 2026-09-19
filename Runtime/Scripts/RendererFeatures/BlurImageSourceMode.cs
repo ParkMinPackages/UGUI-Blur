@@ -1,6 +1,6 @@
 namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 {
-	public enum UIBlurSourceMode
+	public enum BlurImageSourceMode
 	{
 		Camera,
 		Image

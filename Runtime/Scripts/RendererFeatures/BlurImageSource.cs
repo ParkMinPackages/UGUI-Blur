@@ -8,10 +8,10 @@ using UnityEngine.Rendering;
 namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 {
 	[ExecuteAlways, DisallowMultipleComponent]
-	public sealed class UIBlurSource : MonoBehaviour
+	public sealed class BlurImageSource : MonoBehaviour
 	{
 		// - Public Properties -
-		public UIBlurSourceMode SourceMode => _sourceMode;
+		public BlurImageSourceMode SourceMode => _sourceMode;
 		public Camera SourceCamera => _sourceCamera;
 		public UnityEngine.UI.Image SourceImage => _sourceImage;
 		public float Radius => _radius;
@@ -19,8 +19,8 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 		internal Texture ImageTexture => _imageTexture;
 
 		// - Public Methods -
-		internal static UIBlurSource FindFor(Camera camera) {
-			UIBlurSource source = _activeSources.LastOrDefault(activeSource => activeSource != null && activeSource.isActiveAndEnabled && activeSource.CanRenderFor(camera));
+		internal static BlurImageSource FindFor(Camera camera) {
+			BlurImageSource source = _activeSources.LastOrDefault(activeSource => activeSource != null && activeSource.isActiveAndEnabled && activeSource.CanRenderFor(camera));
 			source?.RefreshImageSource();
 			return source;
 		}
@@ -45,7 +45,7 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 
 		// - Private & Protected -
 		[Header(Headers.Settings)]
-		[SerializeField] UIBlurSourceMode _sourceMode;
+		[SerializeField] BlurImageSourceMode _sourceMode;
 		[SerializeField, EnableIf(nameof(IsCameraMode))] Camera _sourceCamera;
 		[SerializeField, EnableIf(nameof(IsImageMode))] UnityEngine.UI.Image _sourceImage;
 		[SerializeField, Range(0f, 128f), Tooltip("Blur support radius in screen pixels.")] float _radius = 40f;
@@ -53,8 +53,8 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 		Texture _imageTexture;
 		RTHandle _imageHandle;
 
-		bool IsCameraMode => _sourceMode == UIBlurSourceMode.Camera;
-		bool IsImageMode => _sourceMode == UIBlurSourceMode.Image;
+		bool IsCameraMode => _sourceMode == BlurImageSourceMode.Camera;
+		bool IsImageMode => _sourceMode == BlurImageSourceMode.Image;
 
 		bool CanRenderFor(Camera camera) {
 			if (IsCameraMode) {
@@ -78,6 +78,6 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 		}
 
 		// - Private Statics -
-		static readonly List<UIBlurSource> _activeSources = new List<UIBlurSource>();
+		static readonly List<BlurImageSource> _activeSources = new List<BlurImageSource>();
 	}
 }

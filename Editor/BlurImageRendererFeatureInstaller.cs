@@ -9,7 +9,7 @@ using UnityEngine.Rendering.Universal;
 
 namespace ParkMinPackages.UGUI.Blur.Editor
 {
-	public static class UIBlurRendererFeatureInstaller
+	public static class BlurImageRendererFeatureInstaller
 	{
 		// - Public Methods -
 		[MenuItem(MenuPath, priority = 100)]
@@ -73,7 +73,7 @@ namespace ParkMinPackages.UGUI.Blur.Editor
 
 		// - Private & Protected -
 		static InstallStatus AddRendererFeature(ScriptableRendererData rendererData, Shader blurShader, out string failureMessage) {
-			if (rendererData.rendererFeatures.Any(rendererFeature => rendererFeature is UIBlurRendererFeature)) {
+			if (rendererData.rendererFeatures.Any(rendererFeature => rendererFeature is BlurImageRendererFeature)) {
 				failureMessage = string.Empty;
 				return InstallStatus.AlreadyInstalled;
 			}
@@ -93,8 +93,8 @@ namespace ParkMinPackages.UGUI.Blur.Editor
 				return InstallStatus.Failed;
 			}
 
-			UIBlurRendererFeature rendererFeature = ScriptableObject.CreateInstance<UIBlurRendererFeature>();
-			rendererFeature.name = nameof(UIBlurRendererFeature);
+			BlurImageRendererFeature rendererFeature = ScriptableObject.CreateInstance<BlurImageRendererFeature>();
+			rendererFeature.name = nameof(BlurImageRendererFeature);
 			rendererFeature.hideFlags |= HideFlags.HideInHierarchy;
 			SerializedObject serializedRendererFeature = new SerializedObject(rendererFeature);
 			SerializedProperty blurShaderProperty = serializedRendererFeature.FindProperty("_blurShader");

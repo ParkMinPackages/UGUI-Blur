@@ -8,7 +8,7 @@ using UnityEngine.Rendering.Universal;
 
 namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 {
-	public sealed class UIBlurRendererFeature : ScriptableRendererFeature
+	public sealed class BlurImageRendererFeature : ScriptableRendererFeature
 	{
 		// - Public Methods -
 		public override void Create() {
@@ -17,7 +17,7 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 			_pass = new BlurPass(_material) { renderPassEvent = RenderPassEvent.BeforeRenderingTransparents };
 		}
 		public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData) {
-			if (_material != null && renderingData.cameraData.cameraType == CameraType.Game && UIBlurSource.FindFor(renderingData.cameraData.camera) != null) {
+			if (_material != null && renderingData.cameraData.cameraType == CameraType.Game && BlurImageSource.FindFor(renderingData.cameraData.camera) != null) {
 				renderer.EnqueuePass(_pass);
 			}
 		}
@@ -49,7 +49,7 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 			// - Public Methods -
 			public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData) {
 				UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
-				UIBlurSource source = UIBlurSource.FindFor(cameraData.camera);
+				BlurImageSource source = BlurImageSource.FindFor(cameraData.camera);
 				if (source == null) {
 					return;
 				}
@@ -60,7 +60,7 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 				int height;
 				TextureDimension dimension;
 				int volumeDepth;
-				if (source.SourceMode == UIBlurSourceMode.Camera) {
+				if (source.SourceMode == BlurImageSourceMode.Camera) {
 					UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
 					background = resourceData.activeColorTexture;
 					width = cameraData.cameraTargetDescriptor.width;
@@ -90,7 +90,7 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 				descriptor.height = Mathf.Max(1, descriptor.height / 2);
 				descriptor.name = "UI Background Half";
 				TextureHandle half = renderGraph.CreateTexture(descriptor);
-				if (source.SourceMode == UIBlurSourceMode.Camera) {
+				if (source.SourceMode == BlurImageSourceMode.Camera) {
 					renderGraph.AddBlitPass(new RenderGraphUtils.BlitMaterialParameters(background, half, _material, 2), "UI Background Downsample Half");
 				}
 				else {
@@ -139,7 +139,7 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 
 			// - Private Statics -
 			static readonly int _radiusId = Shader.PropertyToID("_BlurRadius");
-			static readonly int _textureId = Shader.PropertyToID("_UIBlurTexture");
+			static readonly int _textureId = Shader.PropertyToID("_BlurImageTexture");
 		}
 	}
 }
