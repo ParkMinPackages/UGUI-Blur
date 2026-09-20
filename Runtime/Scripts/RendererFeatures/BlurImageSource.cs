@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using UnityEngine.Sprites;
 
 namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 {
@@ -23,6 +24,42 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 		// - Public Methods -
 		internal bool CanRenderFor(Camera camera) {
 			return IsReady() && TryGetRenderCamera(out Camera renderCamera) && renderCamera == camera;
+		}
+		internal bool TryGetSourceUV(Vector2 screenPosition, out Vector2 sourceUV) {
+			if (IsCameraMode) {
+				Rect screen = _sourceCamera == null ? new Rect(0f, 0f, Screen.width, Screen.height) : _sourceCamera.pixelRect;
+				if (screen.width <= 0f || screen.height <= 0f) {
+					sourceUV = Vector2.zero;
+					return false;
+				}
+
+				sourceUV = new Vector2((screenPosition.x - screen.x) / screen.width, (screenPosition.y - screen.y) / screen.height);
+				return true;
+			}
+			if (_sourceImage == null || _sourceImage.sprite == null) {
+				sourceUV = Vector2.zero;
+				return false;
+			}
+
+			RectTransform rectTransform = _sourceImage.rectTransform;
+			Canvas canvas = _sourceImage.canvas;
+			Canvas rootCanvas = canvas == null ? null : canvas.rootCanvas;
+			Camera eventCamera = rootCanvas == null || rootCanvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : rootCanvas.worldCamera;
+			if (RectTransformUtility.ScreenPointToLocalPointInRectangle(rectTransform, screenPosition, eventCamera, out Vector2 localPosition) == false) {
+				sourceUV = Vector2.zero;
+				return false;
+			}
+
+			Rect drawingRect = GetImageDrawingRect();
+			if (drawingRect.width <= 0f || drawingRect.height <= 0f) {
+				sourceUV = Vector2.zero;
+				return false;
+			}
+
+			Vector2 normalizedPosition = new Vector2((localPosition.x - drawingRect.xMin) / drawingRect.width, (localPosition.y - drawingRect.yMin) / drawingRect.height);
+			Vector4 spriteUV = DataUtility.GetOuterUV(_sourceImage.sprite);
+			sourceUV = new Vector2(Mathf.LerpUnclamped(spriteUV.x, spriteUV.z, normalizedPosition.x), Mathf.LerpUnclamped(spriteUV.y, spriteUV.w, normalizedPosition.y));
+			return true;
 		}
 		internal bool IsReady() {
 			return isActiveAndEnabled && TryGetRenderCamera(out Camera _) && (IsCameraMode || _sourceImage.sprite != null);
@@ -97,6 +134,27 @@ namespace ParkMinPackages.UGUI.Blur.RendererFeatures
 		bool IsCameraMode => _sourceMode == BlurImageSourceMode.Camera;
 		bool IsImageMode => _sourceMode == BlurImageSourceMode.Image;
 
+		Rect GetImageDrawingRect() {
+			Rect drawingRect = _sourceImage.GetPixelAdjustedRect();
+			if (_sourceImage.type != UnityEngine.UI.Image.Type.Simple || _sourceImage.preserveAspect == false) {
+				return drawingRect;
+			}
+
+			Rect spriteRect = _sourceImage.sprite.rect;
+			float spriteAspect = spriteRect.width / spriteRect.height;
+			float rectAspect = drawingRect.width / drawingRect.height;
+			if (spriteAspect > rectAspect) {
+				float height = drawingRect.width / spriteAspect;
+				drawingRect.y += (drawingRect.height - height) * _sourceImage.rectTransform.pivot.y;
+				drawingRect.height = height;
+			}
+			else {
+				float width = drawingRect.height * spriteAspect;
+				drawingRect.x += (drawingRect.width - width) * _sourceImage.rectTransform.pivot.x;
+				drawingRect.width = width;
+			}
+			return drawingRect;
+		}
 		void ReleaseResources() {
 			_imageHandle?.Release();
 			_imageHandle = null;
